@@ -8,8 +8,8 @@ from hloc import colmap_from_nvm, triangulation, localize_sfm, visualization
 def main():
     dataset = Path('datasets/MMW/')  # change this if your dataset is somewhere else
     images = dataset / 'query'
-    sfmpath = Path("outputs/MMW_gndsfm")
-    outputs = Path('outputs/MMW_loc_inc/')  # where everything will be saved
+    sfmpath = Path("outputs/MMW_sfm_gnd")
+    outputs = Path('outputs/MMW_loc_file/')  # where everything will be saved
     sfm_pairs = sfmpath / "pairs-netvlad.txt"  # top 20 most covisible in SIFT model 
     loc_pairs = outputs / "loc_pairs.txt"  # top 20 retrieved by NetVLAD
     

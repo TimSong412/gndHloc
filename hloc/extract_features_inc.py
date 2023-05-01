@@ -5,6 +5,7 @@ from typing import Dict, List, Union, Optional
 import h5py
 from types import SimpleNamespace
 import cv2
+import time
 import numpy as np
 from tqdm import tqdm
 import pprint
@@ -288,9 +289,10 @@ class FeatureExtractor():
     @torch.no_grad()
     def imgextract(self, img:np.ndarray, name=None):
         data = self.convertimg(img)
+        t0 = time.time()
         pred = self.model({'image': data['image'].to(self.device, non_blocking=True)})        
         pred = {k: v[0].cpu().numpy() for k, v in pred.items()}
-
+        print("feature_inference = ", time.time()-t0)
         pred['image_size'] = original_size = data['original_size']
         if 'keypoints' in pred:
             size = np.array(data['image'].shape[-2:][::-1])

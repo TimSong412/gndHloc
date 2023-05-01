@@ -4,10 +4,15 @@ from hloc import logger
 
 from hloc import extract_features, match_features, reconstr, pairs_from_retrieval, pairs_from_covisibility
 import threading
+from planefit import fitgndplane
+from Givens import genGivens
+import hloc.utils.read_write_model as rw
+import numpy as np
 
 
-def genmask(imagepth: Path, outdir: Path="dbmasks"):
-
+def genmask(imagepth: Path, outdir: Path="dbimg_masks") -> Path:
+    output = imagepth.parent / outdir
+    print("maskout= ", output)
     pass
 
 def genGlobalMatch(images, retrieval_conf, sfm_pairs, outputs):
@@ -24,9 +29,11 @@ def genLocalFeat(feature_conf, images, outputs):
     return
 
 def main():
-    images = Path('datasets/MMW/images_all/')
+    images = Path('datasets/MMW/images')
 
-    outputs = Path('outputs/MMW_gndall/')
+    genmask(imagepth=images, )
+
+    outputs = Path('outputs/MMW_sfm_gnd/')
     sfm_pairs = outputs / 'pairs-netvlad.txt'
     sfm_dir = outputs / 'sfm_superpoint+superglue'
 
@@ -52,7 +59,22 @@ def main():
     
     
     model = reconstr.main(sfm_dir, images, sfm_pairs, feature_path, match_path)
-    # pairs_from_covisibility.main(model, sfm_pairs, num_matched=20)
+    # print("model= ", model)
+    camdata = rw.read_cameras_binary(sfm_dir/"cameras.bin")
+    imgdata = rw.read_images_binary(sfm_dir/"images.bin")
+    pts3data = rw.read_points3D_binary(sfm_dir/"points3D.bin")
+    
+
+    [a, b, c, d], inliers, inlierpts = fitgndplane(
+        cams=camdata, imgs=imgdata, pts3d=pts3data, maskpth=Path("datasets/MMW/masks_all"))
+    
+    GVtrans = np.eye(4)
+    GVtrans[0:3, 0:3] = genGivens(np.array([a, b, c]))
+    GVtrans[2, 3]=d
+    # a, b, c, d = GVtrans@np.array([a, b, c, d])
+    # a, b, c, d = 0, 0, 1, 0
+    gndinfo = {'abcd': [a, b, c, d], 'GVtrans': GVtrans}
+    np.save(outputs/"gndinfo.npy", gndinfo)
 
 if __name__ == "__main__":
     main()

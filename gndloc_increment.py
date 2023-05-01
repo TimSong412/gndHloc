@@ -13,7 +13,9 @@ from gndloc import read_qimg_intrinsic, intersect_planeXray, visobj_gnd
 
 
 def main():
-    reconpath = Path("outputs/MMW_sfm/sfm_superpoint+superglue")
+    datapath = Path("datasets/MMW")
+    sfmpath = Path("outputs/MMW_sfm_gnd")
+    reconpath = sfmpath / "sfm_superpoint+superglue"
     # locpath = Path("outputs/MMW_loc")
     locpath = Path("outputs/MMW_loc_sfm")
     vis3d = Vis3D(
@@ -29,21 +31,19 @@ def main():
     pts3data = rw.read_points3D_binary(reconpath/"points3D.bin")
 
     # query database
-    qimgfile = Path("datasets/MMW/qimg.txt")
-    qimgdetdir = Path("datasets/MMW/query_predict/labels")
+    qimgfile = datapath/"qimg_new.txt"
+    qimgdetdir = datapath/ "query_predict/labels"
     qimgintrinsics = read_qimg_intrinsic(qimgfile=qimgfile)
 
-    [a, b, c, d], inliers, inlierpts = fitgndplane(
-        cams=camdata, imgs=imgdata, pts3d=pts3data, maskpth=Path("datasets/MMW/masks_all"))
-    
-    GVtrans = np.eye(4)
-    GVtrans[0:3, 0:3] = genGivens(np.array([a, b, c]))
-    GVtrans[2, 3]=d
+    gndinfo = np.load(sfmpath/"gndinfo.npy", allow_pickle=True).item()
+
+    GVtrans = gndinfo['GVtrans']
     # a, b, c, d = GVtrans@np.array([a, b, c, d])
     a, b, c, d = 0, 0, 1, 0
     locposes = viscam_loc(
         locposefile=locpath/"MMW_hloc_superpoint+superglue_netvlad20.txt", vis3d=vis3d, transpose=GVtrans)
-    demoimgs = ["1109_MMW_DJI_0001_00019.jpg", "1109_MMW_DJI_0005_00087.jpg", "20211115_AENT7199_00017.jpg"]
+    demoimgs = ["1109_MMW_DJI_0001_00019.jpg",
+                "1109_MMW_DJI_0005_00087.jpg", "20211115_AENT7199_00017.jpg"]
 
     for demo in demoimgs:
         intr = qimgintrinsics[demo]
@@ -59,11 +59,11 @@ def main():
                           objlist=detobjs,
                           vis3d=vis3d)
         print("rays= ", rays)
-        rays2int = np.array([np.concatenate([rays['startpt'], r['ray']]) for r in rays['objlist']])
+        rays2int = np.array(
+            [np.concatenate([rays['startpt'], r['ray']]) for r in rays['objlist']])
         inters = intersect_planeXray(np.array([[a, b, c, d]]), rays2int)
         print("inters= ", inters)
         visobj_gnd(demo, np.array([a, b, c, d]), inters[0], vis3d=vis3d)
-        
 
     densemesh = trimesh.load(
         reconpath/"dense"/"fused.ply")

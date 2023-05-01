@@ -9,6 +9,7 @@ from tqdm import tqdm
 import h5py
 import torch
 import time
+import threading
 
 from . import matchers, logger
 from .utils.base_model import dynamic_load
@@ -268,6 +269,9 @@ class FeatureMatcher():
         Model = dynamic_load(matchers, conf['model']['name'])
         self.model = Model(conf['model']).eval().to(self.device)
         self.result = {}
+        self.resultlock = threading.Lock()
+        
+        
 
     def readfeature(self, featurepth):
         feats = {}
@@ -293,14 +297,18 @@ class FeatureMatcher():
             dataset, num_workers=0, batch_size=1, shuffle=False, pin_memory=True)
         # writer_queue = WorkQueue(partial(writer_fn, match_path=match_path), 5)
         st = time.time()
+        inf_threads = []
         for idx, data in enumerate(tqdm(loader, smoothing=.1)):            
             data = {k: v if k.startswith('image')
-                    else v.to(self.device, non_blocking=True) for k, v in data.items()}
-            t0 = time.time()
-            pred = self.model(data)
-            print("inference_time= ", time.time()-t0)
+                    else v.to(self.device, non_blocking=True) for k, v in data.items()}            
             pair = names_to_pair(*pairs[idx])
-            self.add_pair(pair, pred)
+            inft = Thread(target=self.inference, args=[data, pair])
+            inft.start()
+            inf_threads.append(inft)
+            # pred = self.model(data)                                
+            # self.add_pair(pair, pred)
+        for inft in inf_threads:
+            inft.join()
         print("all_match_time = ", time.time()-st)
         # writer_queue.join()
         logger.info('Finished exporting matches.')
@@ -313,7 +321,16 @@ class FeatureMatcher():
         if 'matching_scores0' in pred:
             scores = pred['matching_scores0'][0].cpu().half().numpy()
             grp['matching_scores0'] = scores
+        self.resultlock.acquire()
         self.result[pair] = grp
+        self.resultlock.release()
+        
+    @torch.no_grad()
+    def inference(self, data, pair):
+        t0 = time.time()
+        pred = self.model(data)
+        self.add_pair(pair, pred)
+        print("inference_time= ", time.time()-t0)
 
 
 if __name__ == '__main__':

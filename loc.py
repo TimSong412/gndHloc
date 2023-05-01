@@ -8,7 +8,7 @@ from hloc import colmap_from_nvm, triangulation, localize_sfm, visualization
 dataset = Path('datasets/MMW/')  # change this if your dataset is somewhere else
 images = dataset / 'query'
 
-outputs = Path('outputs/MMW_loc_sfm/')  # where everything will be saved
+outputs = Path('outputs/MMW_loc_sfm_new/')  # where everything will be saved
 sfm_pairs = outputs / 'pairs-db-covis20.txt'  # top 20 most covisible in SIFT model 
 loc_pairs = outputs / "loc_pairs.txt"  # top 20 retrieved by NetVLAD
 reference_sfm = outputs /"sfm_superpoint+superglue"  # the SfM model we will build
@@ -54,7 +54,7 @@ t0 = time.time()
 #     sfm_matches)
 t1 = time.time()
 
-# every image has a descriptor
+# every query image has a descriptor
 descriptors = extract_features.main(retrieval_conf, images, outputs)
 db_descriptors = Path("outputs/MMW_sfm/global-feats-netvlad.h5")
 t2 = time.time()
@@ -73,7 +73,7 @@ loc_matches = match_features.main(matcher_conf, loc_pairs, feature_conf['output'
 t4 = time.time()
 localize_sfm.main(
     reconstruction,    
-    dataset/ "qimg.txt", # dataset / 'queries/*_time_queries_with_intrinsics.txt',
+    dataset/ "qimg_new.txt", # dataset / 'queries/*_time_queries_with_intrinsics.txt',
     loc_pairs,
     features,
     loc_matches,

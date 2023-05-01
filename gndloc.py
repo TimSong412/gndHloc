@@ -52,11 +52,11 @@ def visobj_gnd(name, gnd: np.ndarray, objcenters: np.ndarray,  objboxes: np.ndar
 def main():
     reconpath = Path("outputs/MMW_sfm/sfm_superpoint+superglue")
     # locpath = Path("outputs/MMW_loc")
-    locpath = Path("outputs/MMW_loc_sfm")
+    locpath = Path("outputs/MMW_loc_sfm_new")
     vis3d = Vis3D(
         xyz_pattern=('x', 'y', 'z'),
         out_folder="dbg",
-        sequence="gndloc_sfm",
+        sequence="gndloc_sfm_new",
         # auto_increase=,
         # enable=,
     )

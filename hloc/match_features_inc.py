@@ -8,6 +8,7 @@ from functools import partial
 from tqdm import tqdm
 import h5py
 import torch
+import time
 
 from . import matchers, logger
 from .utils.base_model import dynamic_load
@@ -225,6 +226,94 @@ def match_from_paths(conf: Dict,
         writer_queue.put((pair, pred))
     writer_queue.join()
     logger.info('Finished exporting matches.')
+
+
+class FeaturePairsIncDataset(torch.utils.data.Dataset):
+    def __init__(self, pairs, feature_q, feature_r):
+        self.pairs = pairs
+        self.feature_q = feature_q
+        self.feature_r = feature_r
+
+    def __getitem__(self, idx):
+        name0, name1 = self.pairs[idx]
+        data = {}
+        grp_q = self.feature_q[name0]
+        for k, v in grp_q.items():
+            data[k+'0'] = torch.from_numpy(v).float()
+        # some matchers might expect an image but only use its size
+        data['image0'] = torch.empty((1,)+tuple(grp_q['image_size'])[::-1])
+
+        grp_r = self.feature_r[name1]
+        for k, v in grp_r.items():
+            data[k+'1'] = torch.from_numpy(v).float()
+        data['image1'] = torch.empty((1,)+tuple(grp_r['image_size'])[::-1])
+        return data
+
+    def __len__(self):
+        return len(self.pairs)
+
+
+class FeatureMatcher():
+    def __init__(self, conf: Dict,
+                 features_ref: Optional[Path] = None) -> None:
+
+        logger.info('Matching local features with configuration:'
+                    f'\n{pprint.pformat(conf)}')
+
+        if not features_ref.exists():
+            raise FileNotFoundError(f'Reference feature file {features_ref}.')
+        # match_path.parent.mkdir(exist_ok=True, parents=True)
+        self.feature_ref = self.readfeature(features_ref)
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        Model = dynamic_load(matchers, conf['model']['name'])
+        self.model = Model(conf['model']).eval().to(self.device)
+        self.result = {}
+
+    def readfeature(self, featurepth):
+        feats = {}
+        with h5py.File(featurepth, 'r') as fd:
+            for name, data in fd.items():
+                datadict = {}
+                for key, value in data.items():
+                    datadict[key] = value.__array__()
+                feats[name] = datadict
+        return feats
+
+    @torch.no_grad()
+    def match(self, pairs, feature_q):
+        # pairs = parse_retrieval(pairs_path)
+        # pairs = [(q, r) for q, rs in pairs.items() for r in rs]
+        # pairs = find_unique_new_pairs(pairs, None if overwrite else match_path)
+        if len(pairs) == 0:
+            logger.info('Skipping the matching.')
+            return
+        
+        dataset = FeaturePairsIncDataset(pairs, feature_q, self.feature_ref)
+        loader = torch.utils.data.DataLoader(
+            dataset, num_workers=0, batch_size=1, shuffle=False, pin_memory=True)
+        # writer_queue = WorkQueue(partial(writer_fn, match_path=match_path), 5)
+        st = time.time()
+        for idx, data in enumerate(tqdm(loader, smoothing=.1)):            
+            data = {k: v if k.startswith('image')
+                    else v.to(self.device, non_blocking=True) for k, v in data.items()}
+            t0 = time.time()
+            pred = self.model(data)
+            print("inference_time= ", time.time()-t0)
+            pair = names_to_pair(*pairs[idx])
+            self.add_pair(pair, pred)
+        print("all_match_time = ", time.time()-st)
+        # writer_queue.join()
+        logger.info('Finished exporting matches.')
+        return self.result
+
+    def add_pair(self, pair, pred):
+        # grp = fd.create_group(pair)
+        matches = pred['matches0'][0].cpu().short().numpy()
+        grp = {'matches0': matches}
+        if 'matching_scores0' in pred:
+            scores = pred['matching_scores0'][0].cpu().half().numpy()
+            grp['matching_scores0'] = scores
+        self.result[pair] = grp
 
 
 if __name__ == '__main__':

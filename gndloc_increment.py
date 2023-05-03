@@ -5,11 +5,14 @@ from vistool import Vis3D
 import trimesh
 from scipy.spatial.transform import Rotation as rot
 import hloc.utils.read_write_model as rw
+from hloc import match_features_inc
 from pathlib import Path
 from planefit import fitgndplane, gen_squareface
 from visloc import viscam_loc, visobj_cam
 from Givens import genGivens
 from gndloc import read_qimg_intrinsic, intersect_planeXray, visobj_gnd
+from loc_increment import LocDet
+import pycolmap
 
 
 def main():
@@ -29,6 +32,7 @@ def main():
     camdata = rw.read_cameras_binary(reconpath/"cameras.bin")
     imgdata = rw.read_images_binary(reconpath/"images.bin")
     pts3data = rw.read_points3D_binary(reconpath/"points3D.bin")
+    localizer = LocDet(sfmpath=sfmpath, matcher_conf=match_features_inc.confs['superglue'], num_globalmatch=8)
 
     # query database
     qimgfile = datapath/"qimg_new.txt"
@@ -40,16 +44,22 @@ def main():
     GVtrans = gndinfo['GVtrans']
     # a, b, c, d = GVtrans@np.array([a, b, c, d])
     a, b, c, d = 0, 0, 1, 0
-    locposes = viscam_loc(
-        locposefile=locpath/"MMW_hloc_superpoint+superglue_netvlad20.txt", vis3d=vis3d, transpose=GVtrans)
+    # locposes = viscam_loc(
+    #     locpose=locpath/"MMW_hloc_superpoint+superglue_netvlad20.txt", vis3d=vis3d, transpose=GVtrans)
     demoimgs = ["1109_MMW_DJI_0001_00019.jpg",
                 "1109_MMW_DJI_0005_00087.jpg", "20211115_AENT7199_00017.jpg"]
 
     for demo in demoimgs:
         intr = qimgintrinsics[demo]
-        detfile = open(qimgdetdir / demo.replace(".jpg", ".txt"), 'r')
-        detfile = detfile.readlines()
-        detobjs = [line.split() for line in detfile]
+        camerainfo = pycolmap.Camera('SIMPLE_RADIAL', int(intr[0]), int(intr[1]), np.array(intr[2:]))
+        image = cv2.imread((datapath/"query"/demo).__str__(), cv2.IMREAD_ANYCOLOR)
+        posevec, det = localizer.loc(image=image, imgname=demo, imgintr=camerainfo)
+        locposes = viscam_loc(locpose=posevec, vis3d=vis3d, transpose=GVtrans)
+
+        # detfile = open(qimgdetdir / demo.replace(".jpg", ".txt"), 'r')
+        # detfile = detfile.readlines()
+        # detobjs = [line.split() for line in detfile]
+        detobjs = np.column_stack([det.boxes.cls.cpu().numpy(), det.boxes.xywhn.cpu().numpy()])
         rays = visobj_cam(campose=locposes[demo],
                           w=intr[0],
                           h=intr[1],
@@ -68,8 +78,8 @@ def main():
     densemesh = trimesh.load(
         reconpath/"dense"/"fused.ply")
     meshvert = densemesh.vertices
-    homovert = np.vstack([meshvert.T, np.ones(meshvert.shape[0])])
-    vis3d.add_point_cloud(GVtrans.dot(homovert).T[..., 0:3],
+    homovert = np.column_stack([meshvert, np.ones(meshvert.shape[0])])
+    vis3d.add_point_cloud(GVtrans.dot(homovert.T).T[..., 0:3],
                           colors=densemesh.colors, name="MMW_sfm")
     facevet = gen_squareface(5, a, b, c, d)
     vis3d.add_mesh(facevet[0:3], name="GNDface1")

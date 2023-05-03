@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 import pycolmap
 import ultralytics
+import threading 
 
 from hloc import extract_features_inc, match_features_inc, pairs_from_retrieval_inc
 from hloc import localize_sfm_inc, visualization
@@ -17,6 +18,7 @@ class LocDet():
                  retrieval_conf=extract_features_inc.confs['netvlad'],
                  feature_conf=extract_features_inc.confs['superpoint_aachen'],
                  matcher_conf=match_features_inc.confs['superglue-fast'],
+                 num_globalmatch=3,
                  db_desc="global-feats-netvlad.h5",
                  db_model="sfm_superpoint+superglue",
                  db_feature="feats-superpoint-n4096-r1024.h5",
@@ -30,9 +32,9 @@ class LocDet():
 
         # pick one of the configurations for image retrieval, local feature extraction, and matching
         # you can also simply write your own here!
-        retrieval_conf = extract_features_inc.confs['netvlad']
-        feature_conf = extract_features_inc.confs['superpoint_aachen']
-        matcher_conf = match_features_inc.confs['superglue-fast']
+        # retrieval_conf = extract_features_inc.confs['netvlad']
+        # feature_conf = extract_features_inc.confs['superpoint_aachen']
+        # matcher_conf = match_features_inc.confs['superglue-fast']
         db_descriptors = sfmpath / db_desc
         db_model = sfmpath / db_model
         reconstruction = db_model
@@ -43,18 +45,23 @@ class LocDet():
         self.global_extor = extract_features_inc.FeatureExtractor(
             conf=retrieval_conf)
         self.pairmatcher = pairs_from_retrieval_inc.PairRetriever(
-            num_matched=3, db_model=db_model, db_descriptors=db_descriptors)
+            num_matched=num_globalmatch, db_model=db_model, db_descriptors=db_descriptors)
         self.featmatcher = match_features_inc.FeatureMatcher(
-            matcher_conf, features_ref=feature_ref)
+            matcher_conf, num_globalmatch=num_globalmatch, features_ref=feature_ref)
         self.locer = localize_sfm_inc.Localizer(reconstruction)
         self.detector = ultralytics.YOLO(detector)
-        self.detector.predict("dettest.jpg", conf=0.45, agnostic_nms=True, classes=[2, 7])
+        testimg = cv2.imread("dettest.jpg")
+        self.detector.predict(testimg, conf=0.45, agnostic_nms=True, classes=[2, 7])
+        testlocfeats = self.local_extor.imgextract(testimg, name="dettest.jpg")
     
-    def detect(self, img, cls):
+    def _detect(self, img, cls):
         res = self.detector.predict(img, conf=0.45, agnostic_nms=True, classes=cls)
-        return res[0]
+        self.detres = res[0]
 
-    def locwithdet(self, image:np.ndarray, imgname:str=None, imgintr:pycolmap.Camera=None, targetcls=[2, 7]):
+    def loc(self, image:np.ndarray, imgname:str=None, imgintr:pycolmap.Camera=None, targetcls=[2, 7], det=True):
+        if det:
+            det_t = threading.Thread(target=self._detect, args=[image, targetcls])
+            det_t.start()
         query_cam = [(imgname, imgintr)]
         t0 = time.time()
         '''
@@ -93,6 +100,11 @@ class LocDet():
         print("imgretriev t3 = ", t3-t2)
         print("featmatch  t4 = ", t4-t3)
         print("pnp-loc    t5 = ", t5-t4)
+
+        if not det:
+            return pose
+        det_t.join()
+        return pose, self.detres
         
 
 
@@ -135,11 +147,11 @@ def main():
     img = cv2.imread((images / imgname).__str__(), cv2.IMREAD_ANYCOLOR)
     query_cam = [(imgname, pycolmap.Camera('SIMPLE_RADIAL', int(1920), int(
         1080), np.array([1208.3211522458223, 960.0, 540.0, -0.005620275037756184])))]
-
-    t0 = time.time()
     '''
     query local features
     '''
+    query_local_feats = local_extor.imgextract(img, name=imgname)
+    t0 = time.time()
     query_local_feats = local_extor.imgextract(img, name=imgname)
 
     # local_feats = extract_features_inc.main(feature_conf, Path("datasets/MMW/images_all"), outputs)
@@ -171,7 +183,7 @@ def main():
     '''
     # match_path = outputs / "global_localfeats_match.h5"
     # loc_matches = match_features_inc.main(matcher_conf, loc_pairs, local_feats, outputs, matches=match_path, features_ref=feature_ref)
-    print("FEATMATCH DONE")
+    
     query_featmatch = featmatcher.match(imgpairs, feature_q=query_local_feats)
     t4 = time.time()
 

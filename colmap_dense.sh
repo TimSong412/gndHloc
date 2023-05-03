@@ -1,5 +1,4 @@
-SFMPATH=outputs/MMW_gndall/sfm_superpoint+superglue
-echo "SFMPTH="
+SFMPATH=outputs/MMW_sfm_gnd/sfm_superpoint+superglue
 echo $SFMPATH
 colmap image_undistorter \
     --image_path datasets/MMW/images_all \

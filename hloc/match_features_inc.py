@@ -36,7 +36,7 @@ confs = {
         'model': {
             'name': 'superglue',
             'weights': 'outdoor',
-            'sinkhorn_iterations': 5,
+            'sinkhorn_iterations': 10,
         },
     },
     'NN-superpoint': {
@@ -255,7 +255,9 @@ class FeaturePairsIncDataset(torch.utils.data.Dataset):
 
 
 class FeatureMatcher():
-    def __init__(self, conf: Dict,
+    def __init__(self, 
+                 conf: Dict,
+                 num_globalmatch,
                  features_ref: Optional[Path] = None) -> None:
 
         logger.info('Matching local features with configuration:'
@@ -266,12 +268,19 @@ class FeatureMatcher():
         # match_path.parent.mkdir(exist_ok=True, parents=True)
         self.feature_ref = self.readfeature(features_ref)
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        Model = dynamic_load(matchers, conf['model']['name'])
-        self.model = Model(conf['model']).eval().to(self.device)
+        # Model = dynamic_load(matchers, conf['model']['name'])
+        self.models = []
+        self.num_models = num_globalmatch
+        for i in range(num_globalmatch):
+            Model = dynamic_load(matchers, conf['model']['name'])
+            self.models.append(Model(conf['model']).eval().to(self.device))
+        # self.model = Model(conf['model']).eval().to(self.device)
+        self.preds= [None for i in range(num_globalmatch)]
         self.result = {}
         self.resultlock = threading.Lock()
-        
-        
+        self.datalock = threading.Lock()
+        self.worknumber = 2
+        self.modellocks = [threading.Lock() for i in range(self.worknumber)]        
 
     def readfeature(self, featurepth):
         feats = {}
@@ -298,13 +307,16 @@ class FeatureMatcher():
         # writer_queue = WorkQueue(partial(writer_fn, match_path=match_path), 5)
         st = time.time()
         inf_threads = []
-        for idx, data in enumerate(tqdm(loader, smoothing=.1)):            
+        for idx, data in enumerate(tqdm(loader, smoothing=.1)):  
+            self.datalock.acquire()          
             data = {k: v if k.startswith('image')
                     else v.to(self.device, non_blocking=True) for k, v in data.items()}            
             pair = names_to_pair(*pairs[idx])
-            inft = Thread(target=self.inference, args=[data, pair])
-            inft.start()
+            inft = Thread(target=self.inference, args=[data, pair, idx])
             inf_threads.append(inft)
+                     
+            inft.start()
+            
             # pred = self.model(data)                                
             # self.add_pair(pair, pred)
         for inft in inf_threads:
@@ -321,16 +333,21 @@ class FeatureMatcher():
         if 'matching_scores0' in pred:
             scores = pred['matching_scores0'][0].cpu().half().numpy()
             grp['matching_scores0'] = scores
-        self.resultlock.acquire()
         self.result[pair] = grp
         self.resultlock.release()
         
     @torch.no_grad()
-    def inference(self, data, pair):
+    def inference(self, data, pair, tid):        
         t0 = time.time()
-        pred = self.model(data)
-        self.add_pair(pair, pred)
-        print("inference_time= ", time.time()-t0)
+        self.datalock.release()   
+        self.modellocks[tid%self.worknumber].acquire()
+        self.preds[tid] = self.models[tid%self.num_models](data)
+        self.modellocks[tid%self.worknumber].release()
+        # self.modellock.release()
+        # return
+        self.resultlock.acquire()
+        self.add_pair(pair, self.preds[tid])
+        print("inference_time= ", time.time()-t0, "model id= ", tid)
 
 
 if __name__ == '__main__':

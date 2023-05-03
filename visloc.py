@@ -4,20 +4,26 @@ from scipy.spatial.transform import Rotation as rot
 import numpy as np
 
 
-def viscam_loc(locposefile, vis3d: Vis3D = None, transpose:np.ndarray=None):
+def viscam_loc(locpose, vis3d: Vis3D = None, transpose:np.ndarray=None):
     '''
     visualize localized query cameras
+    params:
+        locpose: filename or dict {name: (qvec, tvec), ...}
     '''
     if transpose is None:
         transpose = np.ones((4))
-    posefile = open(locposefile, 'r')
-    poses = posefile.readlines()
+    if isinstance(locpose, dict):
+        poses = [[k, *(list(locpose[k][0])+list(locpose[k][1]))] for k in locpose.keys()]
+    else:
+        posefile = open(locpose, 'r')
+        poses = posefile.readlines()
+        poses = [pline.strip('\n').split() for pline in poses]
     camposes = {}
     # vis3d.add_camera_trajectory(poses=np.array([np.eye(4)]), name="base")
     for pose in poses:
         # camera center = -R.T * transpose
-        name = pose.split()[0]
-        pose = pose.strip('\n').split()[1:]
+        name = pose[0]
+        pose = pose[1:]
         # print(pose)
         camrot = rot.from_quat([float(pose[1]), float(
             pose[2]), float(pose[3]), float(pose[0])])

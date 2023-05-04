@@ -18,7 +18,7 @@ def genmask(imagepth: Path, outdir: Path="dbimg_masks") -> Path:
 def genGlobalMatch(images, retrieval_conf, sfm_pairs, outputs):
     logger.info("GLOBAL BEGIN")
     retrieval_path = extract_features.main(retrieval_conf, images, outputs)
-    pairs_from_retrieval.main(retrieval_path, sfm_pairs, num_matched=10)
+    pairs_from_retrieval.main(retrieval_path, sfm_pairs, num_matched=20)
     logger.info("GLOBAL DONE")
     return
 
@@ -29,11 +29,13 @@ def genLocalFeat(feature_conf, images, outputs):
     return
 
 def main():
-    images = Path('datasets/MMW/images')
+    dataset = Path("datasets/MED")
+    # images = Path('datasets/MMW/images')
+    images = dataset/"images"
 
     genmask(imagepth=images, )
 
-    outputs = Path('outputs/MMW_sfm_gnd/')
+    outputs = Path('outputs/MED_sfm_gnd/')
     sfm_pairs = outputs / 'pairs-netvlad.txt'
     sfm_dir = outputs / 'sfm_superpoint+superglue'
 
@@ -66,7 +68,7 @@ def main():
     
 
     [a, b, c, d], inliers, inlierpts = fitgndplane(
-        cams=camdata, imgs=imgdata, pts3d=pts3data, maskpth=Path("datasets/MMW/masks_all"))
+        cams=camdata, imgs=imgdata, pts3d=pts3data, maskpth=dataset / "masks")
     
     GVtrans = np.eye(4)
     GVtrans[0:3, 0:3] = genGivens(np.array([a, b, c]))

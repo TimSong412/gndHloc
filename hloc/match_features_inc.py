@@ -279,7 +279,7 @@ class FeatureMatcher():
         self.result = {}
         self.resultlock = threading.Lock()
         self.datalock = threading.Lock()
-        self.worknumber = 2
+        self.worknumber = 3
         self.modellocks = [threading.Lock() for i in range(self.worknumber)]        
 
     def readfeature(self, featurepth):
@@ -338,16 +338,18 @@ class FeatureMatcher():
         
     @torch.no_grad()
     def inference(self, data, pair, tid):        
-        t0 = time.time()
+        
         self.datalock.release()   
         self.modellocks[tid%self.worknumber].acquire()
+        t0 = time.time()
         self.preds[tid] = self.models[tid%self.num_models](data)
+        print("inference_time= ", time.time()-t0, "model id= ", tid)
         self.modellocks[tid%self.worknumber].release()
         # self.modellock.release()
         # return
         self.resultlock.acquire()
         self.add_pair(pair, self.preds[tid])
-        print("inference_time= ", time.time()-t0, "model id= ", tid)
+        
 
 
 if __name__ == '__main__':

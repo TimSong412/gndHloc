@@ -19,6 +19,7 @@ def main():
     datapath = Path("datasets/MMW")
     sfmpath = Path("outputs/MMW_sfm_gnd")
     reconpath = sfmpath / "sfm_superpoint+superglue"
+    dense = True
     # locpath = Path("outputs/MMW_loc")
     locpath = Path("outputs/MMW_loc_sfm")
     vis3d = Vis3D(
@@ -75,12 +76,20 @@ def main():
         print("inters= ", inters)
         visobj_gnd(demo, np.array([a, b, c, d]), inters[0], vis3d=vis3d)
 
-    densemesh = trimesh.load(
-        reconpath/"dense"/"fused.ply")
-    meshvert = densemesh.vertices
+    if dense:
+        mesh = trimesh.load(
+            reconpath/"dense"/"fused.ply")
+        colors = mesh.colors
+        meshvert = mesh.vertices
+    else:
+        meshvert= np.array([p3d.xyz for p3d in pts3data.values()])
+        colors = np.array([p3d.rgb for p3d in pts3data.values()])
+        pass
+        
+    
     homovert = np.column_stack([meshvert, np.ones(meshvert.shape[0])])
     vis3d.add_point_cloud(GVtrans.dot(homovert.T).T[..., 0:3],
-                          colors=densemesh.colors, name="MMW_sfm")
+                          colors=colors, name="MMW_sfm")
     facevet = gen_squareface(5, a, b, c, d)
     vis3d.add_mesh(facevet[0:3], name="GNDface1")
     vis3d.add_mesh(facevet[3:6], name="GNDface2")

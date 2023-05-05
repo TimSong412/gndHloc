@@ -17,7 +17,7 @@ import pycolmap
 
 def main():
     datapath = Path("datasets/MMW")
-    sfmpath = Path("outputs/MMW_sfm_gnd")
+    sfmpath = Path("outputs/MMW_sfm_gnd_lesskpt")
     reconpath = sfmpath / "sfm_superpoint+superglue"
     dense = True
     # locpath = Path("outputs/MMW_loc")
@@ -25,7 +25,7 @@ def main():
     vis3d = Vis3D(
         xyz_pattern=('x', 'y', 'z'),
         out_folder="dbg",
-        sequence="gndloc_inc",
+        sequence="gndloc_inc_lesskpt",
         # auto_increase=,
         # enable=,
     )

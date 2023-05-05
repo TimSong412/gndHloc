@@ -1,7 +1,8 @@
 SFMPATH=outputs/MED_sfm_gnd/sfm_superpoint+superglue
+IMGPATH=datasets/MED/images
 echo $SFMPATH
 colmap image_undistorter \
-    --image_path datasets/MMW/images_all \
+    --image_path $IMGPATH \
     --input_path $SFMPATH\
     --output_path $SFMPATH/dense \
     --output_type COLMAP \

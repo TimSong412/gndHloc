@@ -31,7 +31,8 @@ confs = {
         'model': {
             'name': 'superpoint',
             'nms_radius': 3,
-            'max_keypoints': 4096,
+            # 'max_keypoints': 4096,
+            'max_keypoints': 2048,
         },
         'preprocessing': {
             'grayscale': True,

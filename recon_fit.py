@@ -33,7 +33,7 @@ def main():
     # images = Path('datasets/MMW/images')
     images = dataset/"images"
 
-    genmask(imagepth=images, )
+    # genmask(imagepth=images, )
 
     outputs = Path('outputs/MED_sfm_gnd/')
     sfm_pairs = outputs / 'pairs-netvlad.txt'

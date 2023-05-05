@@ -230,24 +230,37 @@ def match_from_paths(conf: Dict,
 
 
 class FeaturePairsIncDataset(torch.utils.data.Dataset):
-    def __init__(self, pairs, feature_q, feature_r):
+    def __init__(self, pairs, feature_q, feature_r, device):
         self.pairs = pairs
-        self.feature_q = feature_q
-        self.feature_r = feature_r
+        self.feature_q = {}
+        self.feature_r= feature_r
+        for k, v in feature_q.items():
+            tempdict = {}
+            for tk, tv in v.items():
+                tempdict[tk] = torch.from_numpy(tv).float().to(device=device)
+                if tk == "image_size":
+                    tempdict["image_size_cpu"] = tv
+            self.feature_q[k] = tempdict
 
     def __getitem__(self, idx):
         name0, name1 = self.pairs[idx]
         data = {}
         grp_q = self.feature_q[name0]
         for k, v in grp_q.items():
-            data[k+'0'] = torch.from_numpy(v).float()
+            # data[k+'0'] = torch.from_numpy(v).float()
+            data[k+'0'] = v
+            if k == 'image_size_cpu':
+                continue
         # some matchers might expect an image but only use its size
-        data['image0'] = torch.empty((1,)+tuple(grp_q['image_size'])[::-1])
+        data['image0'] = torch.empty((1,)+tuple(grp_q['image_size_cpu'])[::-1])
 
         grp_r = self.feature_r[name1]
         for k, v in grp_r.items():
-            data[k+'1'] = torch.from_numpy(v).float()
-        data['image1'] = torch.empty((1,)+tuple(grp_r['image_size'])[::-1])
+            # data[k+'1'] = torch.from_numpy(v).float()
+            if k == 'image_size_cpu':
+                continue
+            data[k+'1'] = v
+        data['image1'] = torch.empty((1,)+tuple(grp_r['image_size_cpu'])[::-1])
         return data
 
     def __len__(self):
@@ -266,8 +279,9 @@ class FeatureMatcher():
         if not features_ref.exists():
             raise FileNotFoundError(f'Reference feature file {features_ref}.')
         # match_path.parent.mkdir(exist_ok=True, parents=True)
-        self.feature_ref = self.readfeature(features_ref)
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.feature_ref = self.readfeature(features_ref)
+        
         # Model = dynamic_load(matchers, conf['model']['name'])
         self.models = []
         self.num_models = num_globalmatch
@@ -279,7 +293,7 @@ class FeatureMatcher():
         self.result = {}
         self.resultlock = threading.Lock()
         self.datalock = threading.Lock()
-        self.worknumber = 3
+        self.worknumber = 2
         self.modellocks = [threading.Lock() for i in range(self.worknumber)]        
 
     def readfeature(self, featurepth):
@@ -288,7 +302,9 @@ class FeatureMatcher():
             for name, data in fd.items():
                 datadict = {}
                 for key, value in data.items():
-                    datadict[key] = value.__array__()
+                    datadict[key] = torch.from_numpy(value.__array__()).float().to(self.device, non_blocking=True)
+                    if key == "image_size":
+                        datadict["image_size_cpu"] = value.__array__()
                 feats[name] = datadict
         return feats
 
@@ -301,22 +317,25 @@ class FeatureMatcher():
             logger.info('Skipping the matching.')
             return
         
-        dataset = FeaturePairsIncDataset(pairs, feature_q, self.feature_ref)
+        dataset = FeaturePairsIncDataset(pairs, feature_q, self.feature_ref, self.device)
         loader = torch.utils.data.DataLoader(
-            dataset, num_workers=0, batch_size=1, shuffle=False, pin_memory=True)
+            dataset, num_workers=0, batch_size=1, shuffle=False)
         # writer_queue = WorkQueue(partial(writer_fn, match_path=match_path), 5)
         st = time.time()
         inf_threads = []
-        for idx, data in enumerate(tqdm(loader, smoothing=.1)):  
+        t0 = time.time()
+        for idx, data in enumerate(loader):#, smoothing=.1)):  
             self.datalock.acquire()          
             data = {k: v if k.startswith('image')
-                    else v.to(self.device, non_blocking=True) for k, v in data.items()}            
+                    else v.to(self.device, non_blocking=True) for k, v in data.items()}   
+            # print("datatime= ", time.time()-t0, " tid= ", idx)         
             pair = names_to_pair(*pairs[idx])
             inft = Thread(target=self.inference, args=[data, pair, idx])
             inf_threads.append(inft)
                      
             inft.start()
-            
+            print("launchtime= ", time.time()-t0, " tid= ", idx) 
+            # t0 = time.time()
             # pred = self.model(data)                                
             # self.add_pair(pair, pred)
         for inft in inf_threads:
@@ -342,13 +361,13 @@ class FeatureMatcher():
         self.datalock.release()   
         self.modellocks[tid%self.worknumber].acquire()
         t0 = time.time()
-        self.preds[tid] = self.models[tid%self.num_models](data)
-        print("inference_time= ", time.time()-t0, "model id= ", tid)
+        self.preds[tid] = self.models[tid%self.num_models](data)        
         self.modellocks[tid%self.worknumber].release()
         # self.modellock.release()
         # return
         self.resultlock.acquire()
         self.add_pair(pair, self.preds[tid])
+        print("inference&add_time= ", time.time()-t0, "model id= ", tid)
         
 
 

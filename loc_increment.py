@@ -51,11 +51,11 @@ class LocDet():
         self.locer = localize_sfm_inc.Localizer(reconstruction)
         self.detector = ultralytics.YOLO(detector)
         testimg = cv2.imread("dettest.jpg")
-        self.detector.predict(testimg, conf=0.45, agnostic_nms=True, classes=[2, 7])
+        self.detector.predict(testimg, conf=0.3, agnostic_nms=True, classes=[2, 7])
         testlocfeats = self.local_extor.imgextract(testimg, name="dettest.jpg")
     
     def _detect(self, img, cls):
-        res = self.detector.predict(img, conf=0.4, agnostic_nms=True, classes=cls)
+        res = self.detector.predict(img, conf=0.3, agnostic_nms=True, classes=cls)
         self.detres = res[0]
 
     def loc(self, image:np.ndarray, imgname:str=None, imgintr:pycolmap.Camera=None, targetcls=[2, 7], det=True):

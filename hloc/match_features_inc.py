@@ -367,7 +367,7 @@ class FeatureMatcher():
         # return
         self.resultlock.acquire()
         self.add_pair(pair, self.preds[tid])
-        print("inference&add_time= ", time.time()-t0, "model id= ", tid)
+        # print("inference&add_time= ", time.time()-t0, "model id= ", tid)
         
 
 

@@ -22,8 +22,10 @@ def main():
     outpath.mkdir(parents=True, exist_ok=True)
     boxpath = outpath / "boxes"
     calibpath = outpath / "calib"
+    infopath = outpath / "locinfo"
     boxpath.mkdir(exist_ok=True)
     calibpath.mkdir(exist_ok=True)
+    infopath.mkdir(exist_ok=True)
     reconpath = sfmpath / "sfm_superpoint+superglue"
     dense = True
     estimatepose = True
@@ -52,7 +54,7 @@ def main():
 
     GVtrans = gndinfo['GVtrans']
     # a, b, c, d = GVtrans@np.array([a, b, c, d])
-    a, b, c, d = 0, 0, 1, -0.15
+    a, b, c, d = 0, 0, 1, -0.1
     # locposes = viscam_loc(
     #     locpose=locpath/"MMW_hloc_superpoint+superglue_netvlad20.txt", vis3d=vis3d, transpose=GVtrans)
     demoimgs = [
@@ -62,8 +64,8 @@ def main():
         "00102.jpg"]
     # demoimgs = [   
     #         "00120.jpg",
-    #         "DJI_0195_q1.jpg"]
-    #         # "DJI_0192_q1.jpg"]
+    #         "DJI_0195_q1.jpg",
+    #         "DJI_0192_q2.jpg"]
 
 
     for demo in demoimgs:
@@ -81,6 +83,9 @@ def main():
         # detobjs = [line.split() for line in detfile]
         detobjs = np.column_stack(
             [det.boxes.cls.cpu().numpy(), det.boxes.xywhn.cpu().numpy()])
+        for id, box in enumerate(det.boxes.xyxy.cpu().numpy()):
+            cv2.imwrite((outpath / "crops" / f"{demo}_{id}.jpg").__str__(), image[int(box[1]):int(box[3]), int(box[0]):int(box[2])])
+        locinfo = {"name": demo, "campose": locposes[demo], "detcls":det.boxes.cls.cpu().numpy(), "detboxes":det.boxes.xyxy.cpu().numpy()}
         rays = visobj_cam(campose=locposes[demo],
                           w=intr[0],
                           h=intr[1],
@@ -89,12 +94,13 @@ def main():
                           cy=intr[4],
                           objlist=detobjs,
                           vis3d=vis3d)
-        print("rays= ", rays)
+        
         rays2int = np.array(
             [np.concatenate([rays['startpt'], r['ray']]) for r in rays['objlist']])
         inters = intersect_planeXray(np.array([[a, b, c, d]]), rays2int)
         print("inters= ", inters)
         visobj_gnd(demo, np.array([a, b, c, d]), inters[0], vis3d=vis3d)
+        locinfo["locs"] = inters[0]
         if estimatepose:            
             boxes = det.boxes.xyxy.cpu().numpy()
             with open(boxpath / f"{demo.split('.')[0]}.txt", 'w') as f:
@@ -106,14 +112,18 @@ def main():
             poses = np.load(outpath/f"{demo.split('.')[0]}_euler.npy")
             # idx = [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
             # poses = poses[idx]
-            unit = np.array([0, 0, -0.1])
+            unit = np.array([0, 0, 0.1])
+            vecs = []
             for id, angle in enumerate(poses):
-                R = rot.from_euler('xyz', angle, degrees=False)
+                R = rot.from_euler('xyz', [0, -angle[1], 0], degrees=False)
                 vec = R.as_matrix().dot(unit)
                 vec = locposes[demo][0:3, 0:3]@vec
                 vec[2] = 0
+                vecs.append(vec)
                 vis3d.add_lines(inters[0, id], inters[0, id]+vec)
             print("POSE_ADDED")
+            locinfo["dirs"] = np.array(vecs)
+        np.save(infopath / f"{demo.split('.')[0]}", locinfo)
 
 
     if dense:
@@ -129,7 +139,7 @@ def main():
     homovert = np.column_stack([meshvert, np.ones(meshvert.shape[0])])
     vis3d.add_point_cloud(GVtrans.dot(homovert.T).T[..., 0:3],
                           colors=colors, name="MMW_sfm")
-    facevet = gen_squareface(5, a, b, c, d)
+    facevet = gen_squareface(10, a, b, c, d)
     vis3d.add_mesh(facevet[0:3], name="GNDface1")
     vis3d.add_mesh(facevet[3:6], name="GNDface2")
     vis3d.add_mesh(facevet[[2, 1, 0]], name="GNDface3")

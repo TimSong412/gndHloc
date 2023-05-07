@@ -32,7 +32,7 @@ confs = {
             'name': 'superpoint',
             'nms_radius': 3,
             # 'max_keypoints': 4096,
-            'max_keypoints': 2048,
+            'max_keypoints': 1024,
         },
         'preprocessing': {
             'grayscale': True,

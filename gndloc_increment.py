@@ -54,11 +54,11 @@ def main():
 
     GVtrans = gndinfo['GVtrans']
     # a, b, c, d = GVtrans@np.array([a, b, c, d])
-    a, b, c, d = 0, 0, 1, -0.1
+    a, b, c, d = 0, 0, 1, -0.15
     # locposes = viscam_loc(
     #     locpose=locpath/"MMW_hloc_superpoint+superglue_netvlad20.txt", vis3d=vis3d, transpose=GVtrans)
     demoimgs = [
-        "00021.jpg",
+        # "00021.jpg"]
         "00087.jpg",
         "00097.jpg",
         "00102.jpg"]

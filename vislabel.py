@@ -8,17 +8,19 @@ from visloc import viscam_loc, visobj_cam
 import hloc.utils.read_write_model as rw
 from gndloc import read_qimg_intrinsic, intersect_planeXray
 
-def main(vis3d: Vis3D=None, d_bias=-0.15):
+def main(vis3d: Vis3D=None, d_bias=-0.15, name=None):
+    labelid = "00121"
     sfmpath = Path("outputs/MED_sfm_gnd")
     reconpath = Path("outputs/MED_sfm_gnd/sfm_superpoint+superglue")
-    labelpath = Path("datasets/MED/labels/00097.json")
+    labelpath = Path(f"datasets/MED/labels/{labelid}.json")
     
     gndinfo = np.load(sfmpath/"gndinfo.npy", allow_pickle=True).item()
     GVtrans = gndinfo['GVtrans']
     # a, b, c, d = GVtrans@np.array([a, b, c, d])
     a, b, c, d = 0, 0, 1, d_bias
 
-
+    if name is None:
+        name = "vislabel"
     if vis3d is None:
         vis3d = Vis3D(
             xyz_pattern=('x', 'y', 'z'),
@@ -50,11 +52,11 @@ def main(vis3d: Vis3D=None, d_bias=-0.15):
     imgkname = {}
     for img in imgs.values():
         imgkname[img.name] = img
-    img = imgkname["00097.jpg"]
+    img = imgkname[f"{labelid}.jpg"]
     cam = cams[img.camera_id]
     campose = {img.name: (img.qvec, img.tvec)}
     locposes = viscam_loc(locpose=campose, vis3d=vis3d, transpose=GVtrans)
-    locpose = locposes["00097.jpg"]   
+    locpose = locposes[f"{labelid}.jpg"]   
     rays2int = []
     st = locpose@np.array([0,0, 0, 1])
     w = cam.width
@@ -90,12 +92,9 @@ def main(vis3d: Vis3D=None, d_bias=-0.15):
     
     return np.array(centers), np.array(dirs), vis3d
     # vis3d.add_boxes_by_dof(positions=np.array([0, 0, 0]), rotations=np.array([0, 0, 0]), scales=np.array([1, 2, 3]), name="box")
-
-
-
     
 
 
 
 if __name__ == "__main__":
-    main()
+    main(d_bias=-0.05)

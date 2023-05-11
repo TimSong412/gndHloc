@@ -8,6 +8,7 @@ from planefit import fitgndplane
 from Givens import genGivens
 import hloc.utils.read_write_model as rw
 import numpy as np
+import os
 
 
 def genmask(imagepth: Path, outdir: Path="dbimg_masks") -> Path:
@@ -29,13 +30,13 @@ def genLocalFeat(feature_conf, images, outputs):
     return
 
 def main():
-    dataset = Path("datasets/MED")
+    dataset = Path("datasets/YKL")
     # images = Path('datasets/MMW/images')
     images = dataset/"images"
 
     # genmask(imagepth=images, )
 
-    outputs = Path('outputs/MED_sfm_gnd/')
+    outputs = Path('outputs/YKL_sfm_gnd/')
     sfm_pairs = outputs / 'pairs-netvlad.txt'
     sfm_dir = outputs / 'sfm_superpoint+superglue'
 
@@ -77,6 +78,7 @@ def main():
     # a, b, c, d = 0, 0, 1, 0
     gndinfo = {'abcd': [a, b, c, d], 'GVtrans': GVtrans}
     np.save(outputs/"gndinfo.npy", gndinfo)
+    os.system("sh ./colmap_dense.sh")
 
 if __name__ == "__main__":
     main()

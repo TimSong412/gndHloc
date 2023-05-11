@@ -1,5 +1,5 @@
-SFMPATH=outputs/MED_sfm_gnd/sfm_superpoint+superglue
-IMGPATH=datasets/MED/images
+SFMPATH=outputs/YKL_sfm_gnd/sfm_superpoint+superglue
+IMGPATH=datasets/YKL/images
 echo $SFMPATH
 colmap image_undistorter \
     --image_path $IMGPATH \

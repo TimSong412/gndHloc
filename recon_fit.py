@@ -30,13 +30,13 @@ def genLocalFeat(feature_conf, images, outputs):
     return
 
 def main():
-    dataset = Path("datasets/YKL")
+    dataset = Path("datasets/YKL_query")
     # images = Path('datasets/MMW/images')
     images = dataset/"images"
 
     # genmask(imagepth=images, )
 
-    outputs = Path('outputs/YKL_sfm_gnd/')
+    outputs = Path('outputs/YKL_q_sfm_gnd/')
     sfm_pairs = outputs / 'pairs-netvlad.txt'
     sfm_dir = outputs / 'sfm_superpoint+superglue'
 
@@ -62,7 +62,7 @@ def main():
     
     
     model = reconstr.main(sfm_dir, images, sfm_pairs, feature_path, match_path)
-    # print("model= ", model)
+    # print("model= ", model)    
     camdata = rw.read_cameras_binary(sfm_dir/"cameras.bin")
     imgdata = rw.read_images_binary(sfm_dir/"images.bin")
     pts3data = rw.read_points3D_binary(sfm_dir/"points3D.bin")

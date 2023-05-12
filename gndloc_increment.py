@@ -16,10 +16,11 @@ import pycolmap
 
 
 def main():
-    datapath = Path("datasets/MED_query")
-    sfmpath = Path("outputs/MED_sfm_gnd")
-    outpath = Path("outputs/MED_loc")
+    datapath = Path("datasets/YKL")
+    sfmpath = Path("outputs/YKL_sfm_gnd")
+    outpath = Path("outputs/YKL_loc")
     outpath.mkdir(parents=True, exist_ok=True)
+    (outpath / "crops").mkdir(exist_ok=True)
     boxpath = outpath / "boxes"
     calibpath = outpath / "calib"
     infopath = outpath / "locinfo"
@@ -30,11 +31,11 @@ def main():
     dense = True
     estimatepose = True
     # locpath = Path("outputs/MMW_loc")
-    locpath = Path("outputs/MED_loc_sfm")
+    # locpath = Path("outputs/MED_loc_sfm")
     vis3d = Vis3D(
         xyz_pattern=('x', 'y', 'z'),
         out_folder="dbg",
-        sequence="gndloc_inc_MED",
+        sequence="YKL_gndloc_inc",
         # auto_increase=,
         # enable=,
     )
@@ -62,11 +63,12 @@ def main():
     #     "00087.jpg",
     #     "00097.jpg",
     #     "00102.jpg"]
-    demoimgs = [   
-            "00120.jpg",
-            "DJI_0195_q1.jpg",
-            "DJI_0192_q2.jpg"]
-
+    demoimgs = [
+        "DJI_0179.png",
+        "DJI_0180.png",
+        "DJI_0181.png",
+        "DJI_0184.png",
+        "YKL_00017.png"]
 
     for demo in demoimgs:
         intr = qimgintrinsics[demo]
@@ -84,8 +86,10 @@ def main():
         detobjs = np.column_stack(
             [det.boxes.cls.cpu().numpy(), det.boxes.xywhn.cpu().numpy()])
         for id, box in enumerate(det.boxes.xyxy.cpu().numpy()):
-            cv2.imwrite((outpath / "crops" / f"{demo}_{id}.jpg").__str__(), image[int(box[1]):int(box[3]), int(box[0]):int(box[2])])
-        locinfo = {"name": demo, "campose": locposes[demo], "detcls":det.boxes.cls.cpu().numpy(), "detboxes":det.boxes.xyxy.cpu().numpy()}
+            cv2.imwrite((outpath / "crops" / f"{demo}_{id}.jpg").__str__(
+            ), image[int(box[1]):int(box[3]), int(box[0]):int(box[2])])
+        locinfo = {"name": demo, "campose": locposes[demo], "detcls": det.boxes.cls.cpu(
+        ).numpy(), "detboxes": det.boxes.xyxy.cpu().numpy()}
         rays = visobj_cam(campose=locposes[demo],
                           w=intr[0],
                           h=intr[1],
@@ -94,21 +98,23 @@ def main():
                           cy=intr[4],
                           objlist=detobjs,
                           vis3d=vis3d)
-        
+
         rays2int = np.array(
             [np.concatenate([rays['startpt'], r['ray']]) for r in rays['objlist']])
         inters = intersect_planeXray(np.array([[a, b, c, d]]), rays2int)
         print("inters= ", inters)
         visobj_gnd(demo, np.array([a, b, c, d]), inters[0], vis3d=vis3d)
         locinfo["locs"] = inters[0]
-        if estimatepose:            
-            boxes = det.boxes.xyxy.cpu().numpy()
-            with open(boxpath / f"{demo.split('.')[0]}.txt", 'w') as f:
-                for box in boxes:
-                    f.write(f"Car -1 -1 -10 {box[0]} {box[1]} {box[2]} {box[3]} -1 -1 -1 -1000 -1000 -1000 -10 0.55\n")
-            with open(calibpath / f"{demo.split('.')[0]}.txt", 'w') as f:
-                f.write(f"P2: {intr[2]} 0 {intr[3]} 0 0 {intr[2]} {intr[4]} 0 0 0 1 0")
-        
+
+        boxes = det.boxes.xyxy.cpu().numpy()
+        with open(boxpath / f"{demo.split('.')[0]}.txt", 'w') as f:
+            for box in boxes:
+                f.write(
+                    f"Car -1 -1 -10 {box[0]} {box[1]} {box[2]} {box[3]} -1 -1 -1 -1000 -1000 -1000 -10 0.55\n")
+        with open(calibpath / f"{demo.split('.')[0]}.txt", 'w') as f:
+            f.write(
+                f"P2: {intr[2]} 0 {intr[3]} 0 0 {intr[2]} {intr[4]} 0 0 0 1 0")
+        if estimatepose:
             poses = np.load(outpath/f"{demo.split('.')[0]}_euler.npy")
             # idx = [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
             # poses = poses[idx]
@@ -125,7 +131,6 @@ def main():
             locinfo["dirs"] = np.array(vecs)
         np.save(infopath / f"{demo.split('.')[0]}", locinfo)
 
-
     if dense:
         mesh = trimesh.load(
             reconpath/"dense"/"fused.ply")
@@ -138,7 +143,7 @@ def main():
 
     homovert = np.column_stack([meshvert, np.ones(meshvert.shape[0])])
     vis3d.add_point_cloud(GVtrans.dot(homovert.T).T[..., 0:3],
-                          colors=colors, name="MMW_sfm")
+                          colors=colors, name="YKL_sfm")
     facevet = gen_squareface(10, a, b, c, d)
     vis3d.add_mesh(facevet[0:3], name="GNDface1")
     vis3d.add_mesh(facevet[3:6], name="GNDface2")

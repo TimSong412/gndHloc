@@ -20,7 +20,7 @@ def angle(v1, v2):
     return np.arccos(v1@v2) * 180 / np.pi
 
 
-def evaluate(predlocs, preddirs, labellocs, labeldirs, distthresh=0.1, result=None):
+def evaluate(predlocs, preddirs, labellocs, labeldirs, distthresh=0.1, result=None, permeter=1):
     if result is None:
         result = {}
     print("VALUATE RESULT:")
@@ -58,7 +58,7 @@ def evaluate(predlocs, preddirs, labellocs, labeldirs, distthresh=0.1, result=No
     print("FAIL_CNT= ", cnt_fal)
     print("SUCC_RATE= ", cnt_suc / (cnt_suc + cnt_fal))
     if cnt_suc > 0:
-        print("MEAN_DIST_ERR= ", dist_bias / cnt_suc)
+        print("MEAN_DIST_ERR= ", dist_bias / cnt_suc, "meter= ", (dist_bias/permeter) / cnt_suc)
         print("MEAN_ANGLE_ERR= ", angel_bias/cnt_suc)
     print("--------------------------------------------------------")
     print("\n")
@@ -133,7 +133,7 @@ class Obj():
 
     def read_imgs(self) -> list:
         imgs = []
-        for imgfile in self.imgs:
+        for imgfile in self.imgs:            
             im = cv2.imread(imgfile.__str__(), cv2.IMREAD_ANYCOLOR)
             im = cv2.resize(im, (self.imgsz, self.imgsz)).astype(np.float32)
             im = 2*(im-im.min())/(im.max()-im.min())-1.0
@@ -174,6 +174,7 @@ class Observe():
             self.construct_raw(objlist)
         else:
             self.objs = {}
+
     def obs_dist(self, center):
         return np.linalg.norm([(self.locinfo[0]['campose'][2, 3]-self.d_bias), np.linalg.norm((
                 self.locinfo[0]['campose'][0:2, 3]-center[0:2]))])
@@ -185,10 +186,12 @@ class Observe():
             
             if self.obs_dist(objlist[k][1:3]) > self.max_dist:
                 w_dir = 10
-                w_cen = 1e-10
+                w_cen = 0.01
             else:
                 w_dir = w_cen = observe_pitch = np.arctan((self.locinfo[0]['campose'][2, 3]-self.d_bias)/np.linalg.norm(
                 self.locinfo[0]['campose'][0:2, 3]-objlist[k][1:3]))
+                if self.name == "DJI_0179.png":
+                    w_dir = 10                
             
             self.objs[f"{self.name}_{k}"] = Obj(f"{self.name}_{k}", imgs=imgs, w_img=[1], centers=[
                 objlist[k][1:3]], w_center=[w_cen], dirs=[objlist[k][3:5]], w_dir=[w_dir], camposes=[self.locinfo[0]['campose']])
@@ -320,56 +323,86 @@ class Merger():
 
 if __name__ == "__main__":
     # eval()
-    car_length = 0.37
-    car_width = 0.14
-    labellocs, labeldirs, vis3d = vislabel.main(d_bias=-0.05, name="vismerge")
-    infopath = Path("outputs/MED_loc")
+    # car_length = 0.37
+    car_length = 0.31
+    # car_width = 0.14
+    car_width = 0.118
+    permeter = car_length / 5.0
+    labellocs, labeldirs, vis3d = vislabel.main(d_bias=-0.05, name="YKL_vismerge")
+    infopath = Path("outputs/YKL_loc")
     viser = LocViser(infopath, vis3d)
     # demo = "00102.jpg"
     # info0 = viser.visdet(demo)
     # demo = "00087.jpg"
     # info1 = viser.visdet(demo)
-    res = glob.glob("outputs/MED_loc/results/*0.070.npy")
+    
 
     # demoimgs = [
     #     "00021.jpg",  # d = -0.1
     #     "00087.jpg",  # d = -0.15
     #     "00097.jpg",
     #     "00102.jpg"]
-    demoimgs = [   
-        "00120.jpg",
-        "DJI_0195_q1.jpg",
-        "DJI_0192_q2.jpg"] # d = -0.05
+    # demoimgs = [   
+    #     "00120.jpg",
+    #     "DJI_0195_q1.jpg",
+    #     "DJI_0192_q2.jpg"] # d = -0.05
+    demoimgs = [    # d = -0.05
+        "DJI_0179.png",
+        "DJI_0180.png",
+        "DJI_0181.png",
+        "DJI_0184.png",
+        "YKL_00017.png"]
+
     
-    locinfopath = Path("outputs/MED_loc/locinfo")
-    croppath = Path("outputs/MED_loc/crops")
+    locinfopath = infopath / "locinfo"
+    croppath = infopath / "crops"
 
     val_thresh = car_width/2
-    id0 = "00120"
-    info0 = viser.visdet(f"{id0}.jpg", vis=False)
+
+    id0 = demoimgs[0]
+    info0 = viser.visdet(id0, vis=False)
+    
     res0 = evaluate(info0['locs'], info0['dirs'],
-                   labellocs, labeldirs, distthresh=val_thresh)
+                   labellocs, labeldirs, distthresh=val_thresh, permeter=permeter)    
+    ob0 = Observe(name=id0, croppath=croppath,
+                  locinfo=locinfopath/f"{id0.split('.')[0]}.npy", objlist=res0)
+    # exit()
+    id1 = demoimgs[1]
+    info1 = viser.visdet(id1, vis=False)
     
-    ob0 = Observe(name=f"{id0}.jpg", croppath=croppath,
-                  locinfo=locinfopath/f"{id0}.npy", objlist=res0)
-    
-    id1 = "DJI_0195_q1"
-    info1 = viser.visdet(f"{id1}.jpg", vis=False)
     res1 = evaluate(info1['locs'], info1['dirs'],
-                   labellocs, labeldirs, distthresh=val_thresh)
-    ob1 = Observe(name=f"{id1}.jpg", croppath=croppath,
-                  locinfo=locinfopath/f"{id1}.npy", objlist=res1)
+                   labellocs, labeldirs, distthresh=val_thresh, permeter=permeter)
+    ob1 = Observe(name=id1, croppath=croppath,
+                  locinfo=locinfopath/f"{id1.split('.')[0]}.npy", objlist=res1)
+    # exit()
+    id2 = demoimgs[2]
+    info2 = viser.visdet(id2, vis=False)
     
-    id2 = "DJI_0192_q2"
-    info2 = viser.visdet(f"{id2}.jpg")
     res2 = evaluate(info2['locs'], info2['dirs'],
-                   labellocs, labeldirs, distthresh=val_thresh)
-    ob2 = Observe(name=f"{id2}.jpg", croppath=croppath,
-                  locinfo=locinfopath/f"{id2}.npy", objlist=res2)
+                   labellocs, labeldirs, distthresh=val_thresh, permeter=permeter)
+    ob2 = Observe(name=id2, croppath=croppath,
+                  locinfo=locinfopath/f"{id2.split('.')[0]}.npy", objlist=res2)
     
-    # ob3 = Observe(name="00021.jpg", croppath=croppath,
-    #               locinfo=locinfopath/"00021.npy", objlist=results["00021.jpg"]["00021.jpg"])
+    # exit()
+    id3 = demoimgs[3]
+    info3 = viser.visdet(id3, vis=False)
     
+    res3 = evaluate(info3['locs'], info3['dirs'],
+                   labellocs, labeldirs, distthresh=val_thresh, permeter=permeter)
+    ob3 = Observe(name=id3, croppath=croppath,
+                  locinfo=locinfopath/f"{id3.split('.')[0]}.npy", objlist=res3)
+    
+    # exit()
+
+    id4 = demoimgs[4]
+    info4 = viser.visdet(id4, vis=True)
+    
+    res4 = evaluate(info4['locs'], info4['dirs'],
+                   labellocs, labeldirs, distthresh=val_thresh, permeter=permeter)
+    ob4 = Observe(name=id4, croppath=croppath,
+                  locinfo=locinfopath/f"{id4.split('.')[0]}.npy", objlist=res4)
+
+    # exit()
    
     mg = Merger(dist_thresh=car_length)
     newobs = mg.merge(ob0, ob1)
@@ -380,41 +413,36 @@ if __name__ == "__main__":
 
     mergeinfo = newobs.getobjinfo()
     
-    viser.visboxes(centers=mergeinfo['locs'],
-                   dirs=mergeinfo['dirs'], name=mergeinfo['name'])
+    # viser.visboxes(centers=mergeinfo['locs'],
+    #                dirs=mergeinfo['dirs'], name=mergeinfo['name'])
     resmerge = evaluate(mergeinfo['locs'], mergeinfo['dirs'],
                 labellocs, labeldirs, distthresh=val_thresh)
 
-
+    # exit()
     newobs = mg.merge(newobs, ob2)
+    mergeinfo = newobs.getobjinfo()
+    
+    # viser.visboxes(centers=mergeinfo['locs'],
+    #                dirs=mergeinfo['dirs'], name=mergeinfo['name'])
+    resmerge = evaluate(mergeinfo['locs'], mergeinfo['dirs'],
+                labellocs, labeldirs, distthresh=val_thresh, permeter=permeter)
+
+    # exit()
+    newobs = mg.merge(newobs, ob3)
     mergeinfo = newobs.getobjinfo()
     
     viser.visboxes(centers=mergeinfo['locs'],
                    dirs=mergeinfo['dirs'], name=mergeinfo['name'])
     resmerge = evaluate(mergeinfo['locs'], mergeinfo['dirs'],
-                labellocs, labeldirs, distthresh=val_thresh)
+                labellocs, labeldirs, distthresh=val_thresh, permeter=permeter)
 
-    # newobs = mg.merge(ob3, newobs)
+    #exit()
+    newobs = mg.merge(newobs, ob4)
+    mergeinfo = newobs.getobjinfo()
     
-    # info3 = viser.visdet("00021.jpg")    
-    
-    
-    # # res0 = evaluate(info0['locs'], info0['dirs'],
-    # #                labellocs, labeldirs, distthresh=val_thresh)
-    # # res1 = evaluate(info1['locs'], info1['dirs'],
-    # #                labellocs, labeldirs, distthresh=val_thresh)
+    viser.visboxes(centers=mergeinfo['locs'],
+                   dirs=mergeinfo['dirs'], name=mergeinfo['name'])
+    resmerge = evaluate(mergeinfo['locs'], mergeinfo['dirs'],
+                labellocs, labeldirs, distthresh=val_thresh, permeter=permeter)
 
-
-    
-    # res3 = evaluate(info3['locs'], info3['dirs'],
-    #                labellocs, labeldirs, distthresh=val_thresh)
-    
-    
-
-    # mergeinfo = newobs.getobjinfo()                   
-    # resmerge = evaluate(mergeinfo['locs'], mergeinfo['dirs'],
-    #                    labellocs, labeldirs, distthresh=val_thresh)
-    # viser.visboxes(centers=mergeinfo['locs'],
-    #             dirs=mergeinfo['dirs'], name=mergeinfo['name'])
-    
     

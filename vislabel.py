@@ -9,10 +9,10 @@ import hloc.utils.read_write_model as rw
 from gndloc import read_qimg_intrinsic, intersect_planeXray
 
 def main(vis3d: Vis3D=None, d_bias=-0.15, name=None):
-    labelid = "00121"
-    sfmpath = Path("outputs/MED_sfm_gnd")
-    reconpath = Path("outputs/MED_sfm_gnd/sfm_superpoint+superglue")
-    labelpath = Path(f"datasets/MED/labels/{labelid}.json")
+    labelid = "YKL_00165"
+    sfmpath = Path("outputs/YKL_sfm_gnd")
+    reconpath = Path("outputs/YKL_sfm_gnd/sfm_superpoint+superglue")
+    labelpath = Path(f"datasets/YKL/labels/{labelid}.json")
     
     gndinfo = np.load(sfmpath/"gndinfo.npy", allow_pickle=True).item()
     GVtrans = gndinfo['GVtrans']
@@ -25,7 +25,7 @@ def main(vis3d: Vis3D=None, d_bias=-0.15, name=None):
         vis3d = Vis3D(
             xyz_pattern=('x', 'y', 'z'),
             out_folder="dbg",
-            sequence="vislabel",
+            sequence=name,
             # auto_increase=,
             # enable=,
         )
@@ -36,7 +36,7 @@ def main(vis3d: Vis3D=None, d_bias=-0.15, name=None):
 
         homovert = np.column_stack([meshvert, np.ones(meshvert.shape[0])])
         vis3d.add_point_cloud(GVtrans.dot(homovert.T).T[..., 0:3],
-                            colors=colors, name="MMW_sfm")
+                            colors=colors, name=f"{labelid}_sfm")
         facevet = gen_squareface(10, a, b, c, d)
         vis3d.add_mesh(facevet[0:3], name="GNDface1")
         vis3d.add_mesh(facevet[3:6], name="GNDface2")

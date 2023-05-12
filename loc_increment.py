@@ -100,7 +100,7 @@ class LocDet():
         print("imgretriev t3 = ", t3-t2)
         print("featmatch  t4 = ", t4-t3)
         print("pnp-loc    t5 = ", t5-t4)
-        print("total_tiem tt = ", t5-t0)
+        print("total_time tt = ", t5-t0)
 
         if not det:
             return pose

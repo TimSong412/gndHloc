@@ -16,9 +16,9 @@ import pycolmap
 
 
 def main():
-    datapath = Path("datasets/YKL")
-    sfmpath = Path("outputs/YKL_sfm_gnd")
-    outpath = Path("outputs/YKL_loc")
+    datapath = Path("datasets/MED_query")
+    sfmpath = Path("outputs/MED_sfm_gnd")
+    outpath = Path("outputs/MEDped_loc")
     outpath.mkdir(parents=True, exist_ok=True)
     (outpath / "crops").mkdir(exist_ok=True)
     boxpath = outpath / "boxes"
@@ -29,13 +29,13 @@ def main():
     infopath.mkdir(exist_ok=True)
     reconpath = sfmpath / "sfm_superpoint+superglue"
     dense = True
-    estimatepose = True
+    estimatepose = False
     # locpath = Path("outputs/MMW_loc")
     # locpath = Path("outputs/MED_loc_sfm")
     vis3d = Vis3D(
         xyz_pattern=('x', 'y', 'z'),
         out_folder="dbg",
-        sequence="YKL_gndloc_inc",
+        sequence="MEDped_gndloc_inc",
         # auto_increase=,
         # enable=,
     )
@@ -44,7 +44,7 @@ def main():
     imgdata = rw.read_images_binary(reconpath/"images.bin")
     pts3data = rw.read_points3D_binary(reconpath/"points3D.bin")
     localizer = LocDet(
-        sfmpath=sfmpath, matcher_conf=match_features_inc.confs['superglue'], num_globalmatch=8)
+        sfmpath=sfmpath, matcher_conf=match_features_inc.confs['superglue'], num_globalmatch=8, detclass=[0, 1, 2, 3], detconf=0.2)
 
     # query database
     qimgfile = datapath/"qimgs.txt"
@@ -63,12 +63,14 @@ def main():
     #     "00087.jpg",
     #     "00097.jpg",
     #     "00102.jpg"]
-    demoimgs = [
-        "DJI_0179.png",
-        "DJI_0180.png",
-        "DJI_0181.png",
-        "DJI_0184.png",
-        "YKL_00017.png"]
+    # demoimgs = [
+    #     "DJI_0179.png",
+    #     "DJI_0180.png",
+    #     "DJI_0181.png",
+    #     "DJI_0184.png",
+    #     "YKL_00017.png"]
+    # demoimgs = ["YKL_00118.jpg"]
+    demoimgs = ["00181.jpg"]
 
     for demo in demoimgs:
         intr = qimgintrinsics[demo]

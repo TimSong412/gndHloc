@@ -1,5 +1,5 @@
 import numpy as np
-import vislabel
+# import vislabel
 from vistool import Vis3D
 from pathlib import Path
 import os
@@ -66,25 +66,35 @@ def evaluate(predlocs, preddirs, labellocs, labeldirs, distthresh=0.1, result=No
 
 
 class LocViser():
-    def __init__(self, infopath: Path, vis3d: Vis3D = None, d_bias=-0.15) -> None:
+    def __init__(self, infopath: Path, vis3d: Vis3D = None, d_bias=-0.15, cls="car") -> None:
         self.infopath = infopath
         self.locdir = infopath / "locinfo"
         self.cropdir = infopath / "crops"
         self.vis3d = vis3d
         self.z = -d_bias
+        self.cls = cls
 
-    def visboxes(self, centers, dirs, name: str):
+    def visboxes(self, centers, dirs=None, name: str=None):
         for id, loc in enumerate(centers):
             if len(loc) == 2:
                 loc = np.array([*loc, self.z])
-            self.vis3d.add_boxes(positions=loc, eulers=np.array([0, 0, np.arctan(
-                dirs[id][1]/dirs[id][0])]), extents=np.array([0.2, 0.1, 0.4]), name=f"{name}_{id}")
+            if self.cls == "car":
+                self.vis3d.add_boxes(positions=loc, eulers=np.array([0, 0, np.arctan(
+                    dirs[id][1]/dirs[id][0])]), extents=np.array([0.2, 0.1, 0.4]), name=f"{name}_{id}")
+            elif self.cls == "ped":
+                self.vis3d.add_boxes(positions=loc, eulers=np.array([0, 0, 0]), extents=np.array([0.1, 0.1, 0.3]), name=f"{name}_{id}")
+
 
     def visdet(self, name, vis=True):
         locinfo = np.load(
             self.locdir / f"{name.split('.')[0]}.npy", allow_pickle=True).item()
         if vis:
-            self.visboxes(locinfo['locs'], locinfo['dirs'], name)
+            if self.cls == "car":
+                self.visboxes(locinfo['locs'], locinfo['dirs'], name)
+            elif self.cls == "ped":
+                self.visboxes(locinfo['locs'], name=name)
+            else:
+                raise NotImplementedError()
         return locinfo
 
 

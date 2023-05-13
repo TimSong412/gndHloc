@@ -22,7 +22,9 @@ class LocDet():
                  db_desc="global-feats-netvlad.h5",
                  db_model="sfm_superpoint+superglue",
                  db_feature="feats-superpoint-n4096-r1024.h5",
-                 detector='yolov8x.pt'
+                 detector='yolov8x.pt',
+                 detclass = [2, 7],
+                 detconf=0.3
                  ) -> None:
         # list the standard configurations available
         print(
@@ -51,7 +53,8 @@ class LocDet():
         self.locer = localize_sfm_inc.Localizer(reconstruction)
         self.detector = ultralytics.YOLO(detector)
         testimg = cv2.imread("dettest.jpg")
-        self.detector.predict(testimg, conf=0.3, agnostic_nms=True, classes=[2, 7])
+        self.detcls = detclass
+        self.detector.predict(testimg, conf=detconf, agnostic_nms=True, classes=detclass)
         testlocfeats = self.local_extor.imgextract(testimg, name="dettest.jpg")
     
     def _detect(self, img, cls):
@@ -60,7 +63,7 @@ class LocDet():
 
     def loc(self, image:np.ndarray, imgname:str=None, imgintr:pycolmap.Camera=None, targetcls=[2, 7], det=True):
         if det:
-            det_t = threading.Thread(target=self._detect, args=[image, targetcls])
+            det_t = threading.Thread(target=self._detect, args=[image, self.detcls])
             det_t.start()
         query_cam = [(imgname, imgintr)]
         t0 = time.time()
